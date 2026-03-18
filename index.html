@@ -5379,56 +5379,75 @@
             return 'السؤال الحالي: ' + eq + '. ';
         }
 
+       // الدالة الأساسية لإرسال الرسائل (sm = Send Message)
         async function sm(s) {
             const ta = document.getElementById('ci-' + s);
             const txt = ta.value.trim();
             if (!txt) return;
             ta.value = ''; ar(ta);
-            addM(s, txt, 'u');
-
+            addM(s, txt, 'u'); // بنضيف رسالة المستخدم للشاشة
+            
             const ctx = getPreviewContext(s);
-
-            // التأكد إن الهيستوري موجود
+            
             if (!hist[s]) hist[s] = [];
             hist[s].push({ role: 'user', content: ctx + txt });
-
+            
             document.getElementById('sb-' + s).disabled = true;
-            const lid = addM(s, '…', 'a loading');
-
+            const lid = addM(s, '…', 'a loading'); // بنحط علامة التحميل
+            
+            // الزتونة: بنجيب التعليمات الخاصة بكل سؤال لو الطالب في صفحة الأسئلة
+            let customSys = null;
+            if (s.startsWith('Q') && typeof fqData !== 'undefined' && fqData[s.replace('Q', '')]) {
+                customSys = fqData[s.replace('Q', '')].sys;
+            } else if (s.startsWith('SQ') && typeof sqData !== 'undefined' && sqData[s.replace('SQ', '')]) {
+                customSys = sqData[s.replace('SQ', '')].sys;
+            }
+            
             try {
-                // الربط بالباك إند بتاعك بدل Anthropic
-                const res = await fetch('http://localhost:3000/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sectionId: s,
-                        messages: hist[s]
-                    })
+                // ملاحظة صايعة: بنكلم /api/chat مباشرة عشان Vercel يفهمها أونلاين
+                const res = await fetch('/api/chat', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ 
+                        sectionId: s, 
+                        customPrompt: customSys, 
+                        messages: hist[s] 
+                    }) 
                 });
-
+                
                 const d = await res.json();
-                const reply = d.reply || 'حصل خطأ.';
-
-                delM(lid); addM(s, reply, 'a');
+                const reply = d.reply || 'حصلت مشكلة في الرد، جرب تاني يا دحيح.';
+                
+                delM(lid); // بنشيل علامة التحميل
+                addM(s, reply, 'a'); // بنضيف رد الـ AI
                 hist[s].push({ role: 'assistant', content: reply });
+                
+                // بنخلي مكتبة الماث ترسم المعادلات فوراً
                 if (window.MathJax) MathJax.typesetPromise();
-            } catch (e) {
-                delM(lid); addM(s, 'حصل خطأ في الاتصال بالسيرفر.', 'a');
+            } catch (e) { 
+                delM(lid); 
+                addM(s, 'السيرفر مش بيرد، اتأكد إنك رفعت الباك إند صح على Vercel.', 'a'); 
             }
             document.getElementById('sb-' + s).disabled = false;
         }
+
+        // دالة إضافة الرسالة للـ UI (بتخلي الشات ينزل لتحت لوحده)
         function addM(s, txt, type) {
             const log = document.getElementById('cl-' + s);
+            if(!log) return;
             const d = document.createElement('div');
             const id = 'm' + Date.now() + Math.random();
-            d.id = id; d.className = 'msg msg-' + (type.includes('u') ? 'u' : 'a') + (type.includes('loading') ? ' loading' : '');
-            d.textContent = txt; log.appendChild(d); log.scrollTop = log.scrollHeight; return id;
+            d.id = id; 
+            d.className = 'msg msg-' + (type.includes('u') ? 'u' : 'a') + (type.includes('loading') ? ' loading' : '');
+            d.textContent = txt; 
+            log.appendChild(d); 
+            log.scrollTop = log.scrollHeight; 
+            return id;
         }
-        function delM(id) { const e = document.getElementById(id); if (e) e.remove(); }
-        function sq(btn, s) { document.getElementById('ci-' + s).value = btn.textContent; sm(s); }
-        function hk(e, s) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sm(s); } }
-        function ar(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 88) + 'px'; }
 
+        // دالات مساعدة (المسح، ريزايز التكست إريا)
+        function delM(id) { const e = document.getElementById(id); if (e) e.remove(); }
+        function ar(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 88) + 'px'; }
 
         // ══ QUESTION PREVIEW (qmap bar) ══
         const qTexts = {
